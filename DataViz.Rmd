@@ -1,0 +1,340 @@
+---
+title: "Primer DataViz"
+output:
+  html_document:
+    code_folding: hide
+    css: styles.css
+date: "2023-05-25"
+---
+```{r message=F,warning=F}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(viridis)
+library(readr)
+library(ggbeeswarm)
+library(ggpubr)
+library(ggrepel)
+library(ggalluvial)
+library(scales)
+
+data<- read_csv("Stage 1 data.csv")
+
+theme_set(theme_bw()+
+            theme(
+              panel.grid.minor = element_blank(),
+                  axis.ticks = element_blank(),
+                  legend.position = "none"))
+```
+#### Figure 1A
+```{r message=FALSE, warning=FALSE,fig.width=6,fig.height=3.75}
+preat_df<-data.frame(
+  cbind(
+    x=rep(1:6,3),
+    y=rep(1:3,each=6)
+  )
+)
+  
+a_plot<-
+  preat_df %>% 
+  mutate(attribute=ifelse(x==3&y==3,"yes","no")) %>% 
+  ggplot(aes(x,y,color=attribute))+
+  geom_point(size=4)+
+  theme_void()+
+  theme(panel.background=element_rect(colour="black"),
+        legend.position = "none")+
+  coord_cartesian(xlim=c(0.4,6.5),ylim=c(0.5,3.6))+
+  scale_color_manual(values=c("yes"="#ffa600","no"="gray30"))+
+  geom_label(x=0.5,y=3.4,label="A",label.size = NA,size=5,color="gray30")
+
+b_plot<-preat_df %>% 
+  mutate(attribute=ifelse(x==5&y==2,"yes","no")) %>% 
+  ggplot(aes(x,y,size=attribute))+
+  geom_point(color="gray30")+
+  theme_void()+
+  theme(panel.background=element_rect(colour="black"),
+        legend.position = "none")+
+  coord_cartesian(xlim=c(0.4,6.5),ylim=c(0.5,3.6))+
+  scale_size_manual(values=c("yes"=10,"no"=4))+
+  geom_label(x=0.5,y=3.4,label="B",label.size = NA,size=5,color="gray30")
+
+c_plot<-preat_df %>% 
+  mutate(attribute=ifelse(x==2&y==1,"yes","no")) %>% 
+  ggplot(aes(x,y,shape=attribute,size=attribute))+
+  geom_point(color="gray30")+
+  theme_void()+
+  theme(panel.background=element_rect(colour="black"),
+        legend.position = "none")+
+  coord_cartesian(xlim=c(0.4,6.5),ylim=c(0.5,3.6))+
+  scale_shape_manual(values=c("yes"=16,"no"=73))+
+  scale_size_manual(values=c("yes"=6,"no"=8))+
+  geom_label(x=0.5,y=3.4,label="C",label.size = NA,size=5,color="gray30")
+
+d_plot<-
+  preat_df %>% 
+  filter(y==1) %>% 
+  mutate(yend=ifelse(x==4,3,2)) %>% 
+  ggplot(aes(x,y,xend=x,yend=yend))+
+  geom_segment(color="gray30",linewidth=3)+
+  theme_void()+
+  theme(panel.background=element_rect(colour="black"),
+        legend.position = "none")+
+  coord_cartesian(xlim=c(0.4,6.5),ylim=c(0.5,3.6))+
+  scale_shape_manual(values=c("yes"=16,"no"=73))+
+  scale_size_manual(values=c("yes"=6,"no"=8))+
+  geom_label(x=0.5,y=3.4,label="D",label.size = NA,size=5,color="gray30")
+
+ggarrange(a_plot,b_plot,c_plot,d_plot)
+
+# ggsave("preattentive_attributes.pdf",width=6,height=3.75)
+
+```
+
+#### Figure 1B
+```{r message=FALSE, warning=FALSE,fig.width=8.5,fig.height=3.75}
+data %>% 
+  filter(NameOfDrug=="MK-801") %>% 
+  group_by(ContributorID,protocol) %>% 
+  summarise(mean_outcome=mean(Outc_value)) %>% 
+  mutate(
+    protocol=ifelse(ContributorID=="Lab 3"|ContributorID=="Lab 7"|ContributorID=="Lab 2","Protocol\n1","Protocol\n2"),
+    threshold=ifelse(mean_outcome>9500,"Above\nthreshold","Below\nthreshold")) %>% 
+  ggplot(aes(y=reorder(ContributorID,mean_outcome),x=mean_outcome))+
+  geom_bar(stat="identity",aes(fill=threshold,alpha=protocol),width=0.7)+
+  geom_label(aes(label=ContributorID,x=-900),label.size=NA,size=8)+
+  geom_text(size=6,hjust=1,aes(x=,mean_outcome-100,label=paste0(round(mean_outcome/1000,1),"k")))+
+  scale_alpha_manual(values=c("Protocol\n1"=1,"Protocol\n2"=0.3),name="Protocol")+
+  theme_void()+
+  scale_fill_manual(values=c("#ffa600","gray50"),name="Threshold")+
+  theme(legend.position = "bottom",
+        legend.text = element_text(size=20),
+        legend.title = element_blank())+
+  guides(fill = guide_legend(override.aes = list(size = 1)))
+
+ggsave("att_hier.pdf",width=6*1.4,height=3.75*1.2)
+
+```
+
+#### Figure 2A
+```{r message=FALSE, warning=FALSE,fig.width=6,fig.height=3.75}
+data %>% 
+  filter(!(ContributorID=="Lab 7"|ContributorID=="Lab 3")) %>% 
+  group_by(ContributorID,Dose) %>% 
+  summarise(mean=mean(logOutc_value)) %>%
+  mutate(label=ifelse(Dose==0.3,ContributorID,NA),Dose=as.factor(Dose)) %>% 
+  ggplot(aes(x=(Dose),y=mean,label=label,group=ContributorID,color=ContributorID))+
+  geom_path(size=1)+
+  geom_point(size=3.5)+
+  geom_label_repel(nudge_x = +0.5, direction = "y", hjust = "right",size=6,label.size = NA) +
+  scale_color_manual(values=c("#00608b",
+"#407268",
+"#808346",
+"#BF9523",
+"#ffa600"))+
+  coord_cartesian(xlim=c(1.5,3))+
+  labs(y="Mean Outcome",x="Dose")+
+  theme(
+    axis.text = element_text(size=14),
+    axis.title = element_text(size=18)
+  )
+# ggsave("TimeSeries.pdf",width=6,height=3.75)
+```
+
+#### Figure 2B
+```{r message=FALSE, warning=FALSE,fig.width=6,fig.height=3.75}
+data %>% 
+  group_by(ContributorID,NameOfDrug) %>% 
+  summarise(mean=mean(logOutc_value)) %>% 
+  ggplot(aes(x=ContributorID,xend=ContributorID,y=mean,color=NameOfDrug))+
+  geom_path(aes(group=ContributorID),color="gray60")+
+  geom_point(size=4)+
+  scale_color_manual(values=c("#00608b","#ffa600"))+
+  labs(y="Mean Outcome")+
+  theme(
+    legend.position = "right",
+    legend.title = element_blank(),
+    legend.text = element_text(size=12),
+    axis.title.x = element_blank(),
+    axis.text = element_text(size=14),
+    axis.title.y = element_text(size=18)
+  )
+
+# ggsave("Lollipop.pdf",width=6,height=3.75)
+```
+
+#### Figure 3A
+```{r message=FALSE, warning=FALSE,fig.width=6,fig.height=3.75}
+data %>% 
+  mutate(sex=ifelse(grepl("F",TestgroupID),"Female","Male")) %>% 
+  mutate(species="Mice") %>% 
+  group_by(species,sex,Dose) %>% 
+  count() %>% 
+  mutate(Dose=case_when(Dose==0.0~"Low",Dose==0.2~"Medium",Dose==0.3~"High")) %>% 
+  ggplot(
+       aes(y = n,
+           axis1 = species, axis2 = sex, axis3 = Dose)) +
+  geom_alluvium(aes(fill = factor(Dose)), width = 1/12,alpha=0.7) +
+  geom_stratum(width = 2/12, color = "grey") +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)),size=6.5,angle=90,color="gray20") +
+  scale_fill_manual(values=c("#00608b","#ffa600","grey"))+
+  theme_void()+
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_blank(),
+    axis.text.x = element_blank(),
+    axis.line.x = element_blank(),
+    legend.position = "none"
+  ) +
+	scale_y_continuous(breaks=c(0,200,400))
+
+ggsave("hierarchy2.pdf",width=6,height=3.75)
+
+```
+
+#### Figure 3B
+```{r message=FALSE, warning=FALSE,fig.width=6,fig.height=3.75}
+df<-data %>% 
+  group_by(ContributorID,Dose) %>% 
+  summarise(mean=mean(logOutc_value))
+
+df2<-df %>% mutate(ContributorID=paste0("y",ContributorID),mean=NA)
+
+
+rbind(df,df2) %>%
+ggplot(aes(x=ContributorID,y=as.factor(Dose)))+
+geom_tile(aes(fill=mean))+
+theme_void()+
+theme(
+panel.grid = element_blank(),
+axis.title = element_blank(),
+axis.text.y = element_blank(),
+axis.text.x = element_text(size=8.5),
+legend.position = c(0.72, 0.4),
+panel.background=element_rect(colour="white"),
+legend.key.width = unit(0.5, "cm"),
+legend.key.height = unit(0.5, "cm"),
+legend.title = element_text(size=9))+
+coord_polar(theta = "x",start=-1.58)+
+scale_fill_gradient(na.value = "white",low="#c7e6ff",high="#004c6d",name="Mean outcome")+
+scale_x_discrete(breaks=paste("Lab",1:7))+
+annotate(geom="label",y=1,x=1,label=0,vjust=1.70,size=3.2,label.size=NA)+
+annotate(geom="label",y=2,x=1,label=0.2,vjust=2.4,size=3.2,label.size=NA)+
+annotate(geom="label",y=3,x=1,label=0.3,vjust=3,size=3.2,label.size=NA)+
+annotate(geom="label",y=2,x=1,label="Dose",vjust=3.5,size=3.2,label.size=NA)+
+guides(fill=guide_legend(title.position="bottom",label.position = "bottom", title.hjust =0.1,direction='horizontal'))
+
+# ggsave("Figure_aesthetic.svg",width=6,height=3.75)
+
+```
+
+#### Figure 4A
+```{r message=FALSE, warning=FALSE,fig.width=6,fig.height=3.75}
+data %>% 
+  ggplot(aes(x=NameOfDrug,y=logOutc_value,color=NameOfDrug))+
+  geom_boxplot(width=0.1,position = position_nudge(x=0.3))+
+  geom_beeswarm()+
+  theme_grey()+
+  theme(
+    panel.grid = element_line(color="gray40"),
+                  axis.text = element_text(size=14),
+                  axis.title = element_text(size=17),
+    legend.title = element_text(size=13),
+    legend.text = element_text(size=11)
+  )+
+  scale_color_manual(values=c("#00608b","#ffa600"),name="Drug")+
+  labs(y="Outcome",x="Drug")+
+  scale_y_continuous(limits=c(7.6,10),breaks=seq(7.5,10,0.5))
+
+ggsave("Figure_Economya.pdf",width=6,height=3.75)
+
+```
+
+#### Figure 4B
+```{r message=FALSE, warning=FALSE,fig.width=6,fig.height=3.75}
+data %>% 
+  ggplot(aes(x=NameOfDrug,y=logOutc_value,color=NameOfDrug))+
+  geom_boxplot(width=0.1,position = position_nudge(x=0.3))+
+  geom_beeswarm(alpha=0.6)+
+  theme_bw()+
+            theme(panel.grid.minor = element_blank(),
+                  axis.ticks = element_blank(),
+                  axis.text = element_text(size=14),
+                  axis.title = element_text(size=17),
+                  legend.position = "none")+
+  scale_color_manual(values=c("#00608b","#ffa600"),name="Drug")+
+  labs(y="Outcome",x="Drug")+
+  scale_y_continuous(limits=c(7.6,10),breaks=c(8,9,10))
+
+ggsave("Figure_Economyb.pdf",width=6,height=3.75)
+
+```
+
+### Figure 5A
+```{r message=FALSE, warning=FALSE,fig.width=4,fig.height=3.75}
+df_quartiles<-data.frame(quantile(data$logOutc_value[data$NameOfDrug=="Saline"])) %>% 
+  rename(logOutc_value=1) %>% 
+  tibble::rownames_to_column() %>% 
+  mutate(NameOfDrug="Quartiles") %>% 
+  select(!(1))
+
+data %>% 
+  select(NameOfDrug,logOutc_value) %>% 
+  filter(NameOfDrug=="Saline") %>% 
+  mutate(NameOfDrug=gsub("Saline","Full Data",NameOfDrug)) %>% 
+  rbind(.,df_quartiles) %>% 
+  ggplot(aes(x=NameOfDrug,y=logOutc_value,color=NameOfDrug))+
+  geom_jitter(width=0.1)+
+  geom_boxplot(data = ~subset(., NameOfDrug == "Full Data"),width=0.2,position = position_nudge(x=0.3))+
+  geom_boxplot(data = ~subset(., NameOfDrug == "Quartiles"),width=0.2,position = position_nudge(x=-0.3))+
+            theme(panel.grid.minor = element_blank(),
+                  axis.ticks = element_blank(),
+                  axis.title.x = element_blank(),
+                  legend.position = "none")+
+  scale_color_manual(values=c("#00608b","#ffa600"),name="Drug")+
+  labs(y="Outcome")+
+  coord_cartesian(xlim=c(1.4,1.6))+
+  scale_y_continuous(limits=c(7.6,10),breaks=c(8,9,10))
+
+ggsave("Figure5A.pdf",width=4/1.6,height=3.75/1.6)
+
+```
+
+### Figure 5B
+```{r message=FALSE, warning=FALSE,fig.width=4,fig.height=3.75}
+data %>% 
+  group_by(NameOfDrug) %>% 
+  summarise(value=mean(logOutc_value),sd=sd(logOutc_value)) %>% 
+  ggplot(aes(x=NameOfDrug,y=value,fill=NameOfDrug))+
+    geom_bar(stat="identity", alpha=0.7,width=0.5) +
+    geom_pointrange(aes(ymin=value-sd, ymax=value+sd),color="gray40",linewidth=1.3,size=1.5)+
+              theme(panel.grid.minor = element_blank(),
+                  axis.ticks = element_blank(),
+                  axis.title.x = element_blank(),
+                  legend.position = "none")+
+    labs(y="Outcome",x="Drug")+
+
+  scale_fill_manual(values=c("#00608b","#ffa600"),name="Drug")+
+  coord_cartesian(ylim=c(7.6,9.5))+
+  scale_y_continuous(breaks=c(8,9,10))
+
+ggsave("Figure5B.pdf",width=4/1.6,height=3.75/1.6)
+```
+
+### Figure 5C
+```{r message=FALSE, warning=FALSE,fig.width=4,fig.height=3.75}
+data %>% 
+  group_by(NameOfDrug) %>% 
+  summarise(value=mean(logOutc_value),sd=sd(logOutc_value)) %>% 
+  ggplot(aes(x=NameOfDrug,y=value,fill=NameOfDrug))+
+    geom_bar(stat="identity", alpha=0.7,width=0.5) +
+    geom_pointrange(aes(ymin=value-sd, ymax=value+sd),color="gray40")+
+              theme(panel.grid.minor = element_blank(),
+                  axis.ticks = element_blank(),
+                  axis.title.x = element_blank(),
+                  legend.position = "none")+
+    labs(y="Outcome",x="Drug")+
+  scale_fill_manual(values=c("#00608b","#ffa600"),name="Drug")
+  # coord_cartesian(ylim=c(0.5,NA))
+
+ggsave("Figure5C.pdf",width=4/1.6,height=3.75/1.6)
+```
